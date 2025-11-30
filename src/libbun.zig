@@ -127,7 +127,6 @@ const bun = @compileError("Deprecated: Use @import(\"bun\") instead");
 
 const builtin = @import("builtin");
 const std = @import("std");
-const c_int = std.c.int;
 
 const _bun = @import("bun");
 const Environment = _bun.Environment;
