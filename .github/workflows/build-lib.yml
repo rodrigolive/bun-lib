@@ -76,6 +76,9 @@ jobs:
           sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
           sudo update-alternatives --install /usr/bin/lld lld /usr/bin/lld-18 100
           sudo update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-18 100
+          sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-18 100
+          echo "CC=/usr/bin/clang-18" >> $GITHUB_ENV
+          echo "CXX=/usr/bin/clang++-18" >> $GITHUB_ENV
 
       - name: Install Zig
         run: |
@@ -90,6 +93,8 @@ jobs:
         run: |
           bun install
           bun ./scripts/build.mjs -GNinja \
+            -DCMAKE_C_COMPILER=/usr/bin/clang-18 \
+            -DCMAKE_CXX_COMPILER=/usr/bin/clang++-18 \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DBUILD_STATIC_LIBRARY=ON \
             -DGITHUB_ACTIONS=ON \
@@ -98,6 +103,8 @@ jobs:
       - name: Build dynamic library
         run: |
           bun ./scripts/build.mjs -GNinja \
+            -DCMAKE_C_COMPILER=/usr/bin/clang-18 \
+            -DCMAKE_CXX_COMPILER=/usr/bin/clang++-18 \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DBUILD_DYNAMIC_LIBRARY=ON \
             -DGITHUB_ACTIONS=ON \
@@ -140,9 +147,11 @@ jobs:
 
       - name: Set up LLVM
         run: |
-          echo 'export PATH="/usr/local/opt/llvm@18/bin:$PATH"' >> $GITHUB_ENV
-          echo 'export LDFLAGS="-L/usr/local/opt/llvm@18/lib"' >> $GITHUB_ENV
-          echo 'export CPPFLAGS="-I/usr/local/opt/llvm@18/include"' >> $GITHUB_ENV
+          echo "PATH=/usr/local/opt/llvm@18/bin:$PATH" >> $GITHUB_ENV
+          echo "LDFLAGS=-L/usr/local/opt/llvm@18/lib" >> $GITHUB_ENV
+          echo "CPPFLAGS=-I/usr/local/opt/llvm@18/include" >> $GITHUB_ENV
+          echo "CC=/usr/local/opt/llvm@18/bin/clang" >> $GITHUB_ENV
+          echo "CXX=/usr/local/opt/llvm@18/bin/clang++" >> $GITHUB_ENV
 
       - name: Install Zig
         run: |
@@ -157,6 +166,8 @@ jobs:
         run: |
           bun install
           bun ./scripts/build.mjs -GNinja \
+            -DCMAKE_C_COMPILER=/usr/local/opt/llvm@18/bin/clang \
+            -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm@18/bin/clang++ \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DBUILD_STATIC_LIBRARY=ON \
             -DGITHUB_ACTIONS=ON \
@@ -165,6 +176,8 @@ jobs:
       - name: Build dynamic library
         run: |
           bun ./scripts/build.mjs -GNinja \
+            -DCMAKE_C_COMPILER=/usr/local/opt/llvm@18/bin/clang \
+            -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm@18/bin/clang++ \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DBUILD_DYNAMIC_LIBRARY=ON \
             -DGITHUB_ACTIONS=ON \
@@ -206,9 +219,11 @@ jobs:
 
       - name: Set up LLVM
         run: |
-          echo 'export PATH="/opt/homebrew/opt/llvm@18/bin:$PATH"' >> $GITHUB_ENV
-          echo 'export LDFLAGS="-L/opt/homebrew/opt/llvm@18/lib"' >> $GITHUB_ENV
-          echo 'export CPPFLAGS="-I/opt/homebrew/opt/llvm@18/include"' >> $GITHUB_ENV
+          echo "PATH=/opt/homebrew/opt/llvm@18/bin:$PATH" >> $GITHUB_ENV
+          echo "LDFLAGS=-L/opt/homebrew/opt/llvm@18/lib" >> $GITHUB_ENV
+          echo "CPPFLAGS=-I/opt/homebrew/opt/llvm@18/include" >> $GITHUB_ENV
+          echo "CC=/opt/homebrew/opt/llvm@18/bin/clang" >> $GITHUB_ENV
+          echo "CXX=/opt/homebrew/opt/llvm@18/bin/clang++" >> $GITHUB_ENV
 
       - name: Install Zig
         run: |
@@ -223,6 +238,8 @@ jobs:
         run: |
           bun install
           bun ./scripts/build.mjs -GNinja \
+            -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm@18/bin/clang \
+            -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm@18/bin/clang++ \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DBUILD_STATIC_LIBRARY=ON \
             -DGITHUB_ACTIONS=ON \
@@ -231,6 +248,8 @@ jobs:
       - name: Build dynamic library
         run: |
           bun ./scripts/build.mjs -GNinja \
+            -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm@18/bin/clang \
+            -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm@18/bin/clang++ \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DBUILD_DYNAMIC_LIBRARY=ON \
             -DGITHUB_ACTIONS=ON \
