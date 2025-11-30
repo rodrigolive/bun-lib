@@ -1454,7 +1454,8 @@ if(NOT BUN_CPP_ONLY)
     )
   endif()
 
-  if(CI)
+  # Features.json generation - only for executables
+  if(CI AND NOT BUILD_STATIC_LIBRARY AND NOT BUILD_DYNAMIC_LIBRARY)
     set(BUN_FEATURES_SCRIPT ${CWD}/scripts/features.mjs)
     register_command(
       TARGET
@@ -1478,7 +1479,8 @@ if(NOT BUN_CPP_ONLY)
     )
   endif()
 
-  if(CMAKE_HOST_APPLE AND bunStrip)
+  # Debug symbol generation - only for executables, not libraries
+  if(CMAKE_HOST_APPLE AND bunStrip AND NOT BUILD_STATIC_LIBRARY AND NOT BUILD_DYNAMIC_LIBRARY)
     register_command(
       TARGET
         ${bun}
@@ -1501,7 +1503,8 @@ if(NOT BUN_CPP_ONLY)
     )
   endif()
 
-  if(CI)
+  # CI packaging - only for executables
+  if(CI AND NOT BUILD_STATIC_LIBRARY AND NOT BUILD_DYNAMIC_LIBRARY)
     set(bunTriplet bun-${OS}-${ARCH})
     if(LINUX AND ABI STREQUAL "musl")
       set(bunTriplet ${bunTriplet}-musl)
