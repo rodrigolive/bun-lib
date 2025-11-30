@@ -1011,6 +1011,7 @@ if(NOT WIN32)
       -Wno-c++23-lambda-attributes
       -Wno-nullability-completeness
       -Wno-undefined-var-template
+      -Wno-mismatched-tags
       -Werror
     )
   else()
@@ -1029,6 +1030,7 @@ if(NOT WIN32)
       -Wno-c++23-lambda-attributes
       -Wno-nullability-completeness
       -Wno-undefined-var-template
+      -Wno-mismatched-tags
       -Werror
     )
 
