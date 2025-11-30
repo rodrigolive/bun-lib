@@ -92,12 +92,12 @@ pub export fn bun_eval(code: [*:0]const u8, code_len: usize) callconv(.c) c_int 
 
 /// Get the Bun version string.
 pub export fn bun_version() callconv(.c) [*:0]const u8 {
-    return _bun.Global.version;
+    return _bun.Global.package_json_version;
 }
 
 /// Get the Bun revision (git SHA).
 pub export fn bun_revision() callconv(.c) [*:0]const u8 {
-    return _bun.Global.git_sha;
+    return Environment.git_sha;
 }
 
 pub export fn Bun__panic(msg: [*]const u8, len: usize) noreturn {
