@@ -82,10 +82,25 @@ setx(WEBKIT_NAME bun-webkit-${WEBKIT_OS}-${WEBKIT_ARCH}${WEBKIT_SUFFIX})
 set(WEBKIT_FILENAME ${WEBKIT_NAME}.tar.gz)
 setx(WEBKIT_DOWNLOAD_URL https://github.com/oven-sh/WebKit/releases/download/autobuild-${WEBKIT_VERSION}/${WEBKIT_FILENAME})
 
+# Function to add WebKit libraries to the global static lib list
+function(add_webkit_libs_to_global_list)
+  file(GLOB WEBKIT_LIBS ${WEBKIT_LIB_PATH}/*.a)
+  foreach(lib IN LISTS WEBKIT_LIBS)
+    list(APPEND STATIC_LIB_LIST ${lib})
+    if(BUILD_STATIC_LIBRARY OR BUILD_DYNAMIC_LIBRARY)
+      message(STATUS " -- Added WebKit lib ${lib} to static lib list")
+    endif()
+  endforeach()
+  set(STATIC_LIB_LIST "${STATIC_LIB_LIST}" PARENT_SCOPE)
+endfunction()
+
 if(EXISTS ${WEBKIT_PATH}/package.json)
   file(READ ${WEBKIT_PATH}/package.json WEBKIT_PACKAGE_JSON)
 
   if(WEBKIT_PACKAGE_JSON MATCHES ${WEBKIT_VERSION})
+    if(BUILD_STATIC_LIBRARY OR BUILD_DYNAMIC_LIBRARY)
+      add_webkit_libs_to_global_list()
+    endif()
     return()
   endif()
 endif()
@@ -95,6 +110,10 @@ file(ARCHIVE_EXTRACT INPUT ${CACHE_PATH}/${WEBKIT_FILENAME} DESTINATION ${CACHE_
 file(REMOVE ${CACHE_PATH}/${WEBKIT_FILENAME})
 file(REMOVE_RECURSE ${WEBKIT_PATH})
 file(RENAME ${CACHE_PATH}/bun-webkit ${WEBKIT_PATH})
+
+if(BUILD_STATIC_LIBRARY OR BUILD_DYNAMIC_LIBRARY)
+  add_webkit_libs_to_global_list()
+endif()
 
 if(APPLE)
   file(REMOVE_RECURSE ${WEBKIT_INCLUDE_PATH}/unicode)

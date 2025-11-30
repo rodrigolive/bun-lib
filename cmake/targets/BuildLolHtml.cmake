@@ -18,6 +18,9 @@ endif()
 
 set(LOLHTML_LIBRARY ${LOLHTML_BUILD_PATH}/${LOLHTML_BUILD_TYPE}/${CMAKE_STATIC_LIBRARY_PREFIX}lolhtml${CMAKE_STATIC_LIBRARY_SUFFIX})
 
+# Add lolhtml to static lib list for bundling
+list(APPEND STATIC_LIB_LIST ${LOLHTML_LIBRARY})
+
 set(LOLHTML_BUILD_ARGS
   --target-dir ${BUILD_PATH}/lolhtml
 )

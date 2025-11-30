@@ -34,7 +34,6 @@ else()
   setx(TEST OFF)
 endif()
 
-
 if(CMAKE_BUILD_TYPE MATCHES "MinSizeRel")
   setx(ENABLE_SMOL ON)
 endif()
@@ -205,3 +204,13 @@ optionx(ERROR_LIMIT STRING "Maximum number of errors to show when compiling C++ 
 set(USE_MIMALLOC_AS_DEFAULT_ALLOCATOR ON)
 
 list(APPEND CMAKE_ARGS -DCMAKE_EXPORT_COMPILE_COMMANDS=ON)
+
+# Static library build options
+string(TOLOWER ${CMAKE_HOST_SYSTEM_NAME}/${CMAKE_HOST_SYSTEM_PROCESSOR} STATIC_LIB_OUTPUT_DESTINATION_BY_ARCH)
+optionx(BUILD_STATIC_LIBRARY BOOL "Build as a static library (using libbun.zig)" DEFAULT OFF)
+optionx(BUILD_DYNAMIC_LIBRARY BOOL "Build as a dynamic/shared library" DEFAULT OFF)
+optionx(STATIC_LIB_OUTPUT_DESTINATION STRING "Output directory for static library builds" DEFAULT ${BUILD_PATH}/output/libs/${STATIC_LIB_OUTPUT_DESTINATION_BY_ARCH})
+
+if(BUILD_STATIC_LIBRARY OR BUILD_DYNAMIC_LIBRARY)
+  file(MAKE_DIRECTORY "${STATIC_LIB_OUTPUT_DESTINATION}")
+endif()

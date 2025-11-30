@@ -18,7 +18,13 @@ pub const wtf = @import("./bindings/WTF.zig").WTF;
 pub fn initialize(eval_mode: bool) void {
     markBinding(@src());
     bun.analytics.Features.jsc += 1;
-    JSCInitialize(std.os.environ.ptr, std.os.environ.len, onJSCInvalidEnvVar, eval_mode);
+
+    // When building as a library, we may not have access to environ at compile time
+    // since the executable context is determined at runtime by the embedding application.
+    const is_exe = comptime builtin.output_mode == .Exe;
+    const env_count = if (is_exe) std.os.environ.len else 0;
+
+    JSCInitialize(std.os.environ.ptr, env_count, onJSCInvalidEnvVar, eval_mode);
 }
 
 pub const JSValue = @import("./bindings/JSValue.zig").JSValue;
@@ -279,5 +285,6 @@ pub const math = struct {
 
 pub const generated = @import("bindgen_generated");
 
+const builtin = @import("builtin");
 const bun = @import("bun");
 const std = @import("std");
