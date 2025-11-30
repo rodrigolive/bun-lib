@@ -51,6 +51,9 @@ jobs:
 
       - name: Install system dependencies
         run: |
+          # Add LLVM apt repository
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee /etc/apt/sources.list.d/llvm-18.list
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
@@ -77,10 +80,11 @@ jobs:
       - name: Install Zig
         run: |
           ZIG_VERSION=$(cat .zigversion)
-          curl -L "https://github.com/oven-sh/zig/releases/download/autobuild-${ZIG_VERSION}/bootstrap-x86_64-linux-musl.zip" -o zig.zip
-          unzip zig.zip
-          sudo mv bootstrap-x86_64-linux-musl/zig /usr/local/bin/
-          rm -rf zig.zip bootstrap-x86_64-linux-musl
+          ZIG_NAME="bootstrap-x86_64-linux-musl"
+          curl -fLo zig.zip "https://github.com/oven-sh/zig/releases/download/autobuild-${ZIG_VERSION}/${ZIG_NAME}.zip"
+          unzip -q zig.zip
+          sudo mv ${ZIG_NAME}/zig /usr/local/bin/
+          rm -rf zig.zip ${ZIG_NAME}
 
       - name: Build static library
         run: |
@@ -143,10 +147,11 @@ jobs:
       - name: Install Zig
         run: |
           ZIG_VERSION=$(cat .zigversion)
-          curl -L "https://github.com/oven-sh/zig/releases/download/autobuild-${ZIG_VERSION}/bootstrap-x86_64-macos.zip" -o zig.zip
-          unzip zig.zip
-          sudo mv bootstrap-x86_64-macos/zig /usr/local/bin/
-          rm -rf zig.zip bootstrap-x86_64-macos
+          ZIG_NAME="bootstrap-x86_64-macos-none"
+          curl -fLo zig.zip "https://github.com/oven-sh/zig/releases/download/autobuild-${ZIG_VERSION}/${ZIG_NAME}.zip"
+          unzip -q zig.zip
+          sudo mv ${ZIG_NAME}/zig /usr/local/bin/
+          rm -rf zig.zip ${ZIG_NAME}
 
       - name: Build static library
         run: |
@@ -208,10 +213,11 @@ jobs:
       - name: Install Zig
         run: |
           ZIG_VERSION=$(cat .zigversion)
-          curl -L "https://github.com/oven-sh/zig/releases/download/autobuild-${ZIG_VERSION}/bootstrap-aarch64-macos.zip" -o zig.zip
-          unzip zig.zip
-          sudo mv bootstrap-aarch64-macos/zig /usr/local/bin/
-          rm -rf zig.zip bootstrap-aarch64-macos
+          ZIG_NAME="bootstrap-aarch64-macos-none"
+          curl -fLo zig.zip "https://github.com/oven-sh/zig/releases/download/autobuild-${ZIG_VERSION}/${ZIG_NAME}.zip"
+          unzip -q zig.zip
+          sudo mv ${ZIG_NAME}/zig /usr/local/bin/
+          rm -rf zig.zip ${ZIG_NAME}
 
       - name: Build static library
         run: |
