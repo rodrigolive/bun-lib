@@ -1013,6 +1013,7 @@ if(NOT WIN32)
       -Wno-undefined-var-template
       -Wno-mismatched-tags
       -Wno-deprecated-declarations
+      -Wno-character-conversion
       -Werror
     )
   else()
@@ -1033,6 +1034,7 @@ if(NOT WIN32)
       -Wno-undefined-var-template
       -Wno-mismatched-tags
       -Wno-deprecated-declarations
+      -Wno-character-conversion
       -Werror
     )
 
