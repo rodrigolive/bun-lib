@@ -223,16 +223,18 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Use Apple's clang from Xcode 16.2 (has fixed libc++ headers, unlike LLVM 18)
-          brew install cmake ninja rust pkg-config
+          brew install cmake ninja llvm@18 rust pkg-config
 
-      - name: Set up compilers
+      - name: Set up LLVM with Apple libc++ headers
         run: |
-          # Use Apple's clang from Xcode 16.2 which has fixed libc++ headers
-          # LLVM 18's bundled libc++ has the lazy_split_view access specifier bug
+          # Use LLVM 18's clang (required for warning flags) but Apple's libc++ headers
+          # (LLVM 18's bundled libc++ has the lazy_split_view access specifier bug)
+          echo "PATH=/opt/homebrew/opt/llvm@18/bin:$PATH" >> $GITHUB_ENV
+          echo "CC=/opt/homebrew/opt/llvm@18/bin/clang" >> $GITHUB_ENV
+          echo "CXX=/opt/homebrew/opt/llvm@18/bin/clang++" >> $GITHUB_ENV
+          # Force Apple's libc++ headers by removing LLVM's and adding Apple's first
           SDK_PATH=$(xcrun --show-sdk-path)
-          echo "CC=$(xcrun -find clang)" >> $GITHUB_ENV
-          echo "CXX=$(xcrun -find clang++)" >> $GITHUB_ENV
+          echo "CXXFLAGS=-nostdinc++ -isystem ${SDK_PATH}/usr/include/c++/v1" >> $GITHUB_ENV
 
       - name: Install Zig
         run: |
@@ -247,8 +249,8 @@ jobs:
         run: |
           bun install
           bun ./scripts/build.mjs -GNinja \
-            -DCMAKE_C_COMPILER=$(xcrun -find clang) \
-            -DCMAKE_CXX_COMPILER=$(xcrun -find clang++) \
+            -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm@18/bin/clang \
+            -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm@18/bin/clang++ \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DBUILD_STATIC_LIBRARY=ON \
             -DGITHUB_ACTIONS=ON \
@@ -257,8 +259,8 @@ jobs:
       - name: Build dynamic library
         run: |
           bun ./scripts/build.mjs -GNinja \
-            -DCMAKE_C_COMPILER=$(xcrun -find clang) \
-            -DCMAKE_CXX_COMPILER=$(xcrun -find clang++) \
+            -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm@18/bin/clang \
+            -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm@18/bin/clang++ \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DBUILD_DYNAMIC_LIBRARY=ON \
             -DGITHUB_ACTIONS=ON \
