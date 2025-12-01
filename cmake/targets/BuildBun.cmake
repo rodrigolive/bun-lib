@@ -1013,9 +1013,13 @@ if(NOT WIN32)
       -Wno-undefined-var-template
       -Wno-mismatched-tags
       -Wno-deprecated-declarations
-      -Wno-character-conversion
       -Werror
     )
+
+    # Add -Wno-character-conversion only for Apple clang (macOS)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+      target_compile_options(${bun} PUBLIC -Wno-character-conversion)
+    endif()
   else()
     # Leave -Werror=unused off in release builds so we avoid errors from being used in ASSERT
     target_compile_options(${bun} PUBLIC ${LTO_FLAG}
@@ -1034,9 +1038,12 @@ if(NOT WIN32)
       -Wno-undefined-var-template
       -Wno-mismatched-tags
       -Wno-deprecated-declarations
-      -Wno-character-conversion
-      -Werror
     )
+
+    # Add -Wno-character-conversion only for Apple clang (macOS)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+      target_compile_options(${bun} PUBLIC -Wno-character-conversion)
+    endif()
 
     if(ENABLE_ASAN)
       target_compile_options(${bun} PUBLIC
