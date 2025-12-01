@@ -214,10 +214,11 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Select Xcode 16
+      - name: Select Xcode 16.2
         run: |
-          # Use Xcode 16 which has a newer SDK with fixed libc++ (no lazy_split_view bug)
-          sudo xcode-select -switch /Applications/Xcode_16.0.app/Contents/Developer
+          # Use Xcode 16.2 which has a newer SDK with fixed libc++ (no lazy_split_view bug)
+          # Xcode 16.0 was removed from macos-14 runners as of Jan 2025
+          sudo xcode-select -switch /Applications/Xcode_16.2.app/Contents/Developer
           xcodebuild -version
 
       - name: Install dependencies
