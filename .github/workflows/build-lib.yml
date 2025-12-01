@@ -148,13 +148,11 @@ jobs:
       - name: Set up LLVM
         run: |
           echo "PATH=/usr/local/opt/llvm@18/bin:$PATH" >> $GITHUB_ENV
-          echo "LDFLAGS=-L/usr/local/opt/llvm@18/lib" >> $GITHUB_ENV
-          echo "CPPFLAGS=-I/usr/local/opt/llvm@18/include" >> $GITHUB_ENV
+          echo "LDFLAGS=-L/usr/local/opt/llvm@18/lib -L/usr/local/opt/llvm@18/lib/c++" >> $GITHUB_ENV
           echo "CC=/usr/local/opt/llvm@18/bin/clang" >> $GITHUB_ENV
           echo "CXX=/usr/local/opt/llvm@18/bin/clang++" >> $GITHUB_ENV
-          # Use macOS SDK libc++ headers to avoid LLVM libc++ bugs
-          SDK_PATH=$(xcrun --show-sdk-path)
-          echo "CPLUS_INCLUDE_PATH=${SDK_PATH}/usr/include/c++/v1" >> $GITHUB_ENV
+          # Use Apple's libc++ instead of LLVM's to avoid lazy_split_view bug
+          echo "CXXFLAGS=-stdlib=libc++ -nostdinc++ -isystem $(xcrun --show-sdk-path)/usr/include/c++/v1 -isystem $(xcrun --show-sdk-path)/usr/include" >> $GITHUB_ENV
 
       - name: Install Zig
         run: |
@@ -223,13 +221,11 @@ jobs:
       - name: Set up LLVM
         run: |
           echo "PATH=/opt/homebrew/opt/llvm@18/bin:$PATH" >> $GITHUB_ENV
-          echo "LDFLAGS=-L/opt/homebrew/opt/llvm@18/lib" >> $GITHUB_ENV
-          echo "CPPFLAGS=-I/opt/homebrew/opt/llvm@18/include" >> $GITHUB_ENV
+          echo "LDFLAGS=-L/opt/homebrew/opt/llvm@18/lib -L/opt/homebrew/opt/llvm@18/lib/c++" >> $GITHUB_ENV
           echo "CC=/opt/homebrew/opt/llvm@18/bin/clang" >> $GITHUB_ENV
           echo "CXX=/opt/homebrew/opt/llvm@18/bin/clang++" >> $GITHUB_ENV
-          # Use macOS SDK libc++ headers to avoid LLVM libc++ bugs
-          SDK_PATH=$(xcrun --show-sdk-path)
-          echo "CPLUS_INCLUDE_PATH=${SDK_PATH}/usr/include/c++/v1" >> $GITHUB_ENV
+          # Use Apple's libc++ instead of LLVM's to avoid lazy_split_view bug
+          echo "CXXFLAGS=-stdlib=libc++ -nostdinc++ -isystem $(xcrun --show-sdk-path)/usr/include/c++/v1 -isystem $(xcrun --show-sdk-path)/usr/include" >> $GITHUB_ENV
 
       - name: Install Zig
         run: |
