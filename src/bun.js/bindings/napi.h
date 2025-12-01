@@ -88,16 +88,20 @@ struct AsyncCleanupHook : CleanupHook {
 };
 
 struct EitherCleanupHook : std::variant<SyncCleanupHook, AsyncCleanupHook> {
-    template<typename Self>
-    auto& get(this Self& self)
+    CleanupHook& get()
     {
-        using Hook = MatchConst<Self, CleanupHook>::type;
-
-        if (auto* sync = std::get_if<SyncCleanupHook>(&self)) {
-            return static_cast<Hook&>(*sync);
+        if (auto* sync = std::get_if<SyncCleanupHook>(this)) {
+            return static_cast<CleanupHook&>(*sync);
         }
+        return static_cast<CleanupHook&>(std::get<AsyncCleanupHook>(*this));
+    }
 
-        return static_cast<Hook&>(std::get<AsyncCleanupHook>(self));
+    const CleanupHook& get() const
+    {
+        if (auto* sync = std::get_if<SyncCleanupHook>(this)) {
+            return static_cast<const CleanupHook&>(*sync);
+        }
+        return static_cast<const CleanupHook&>(std::get<AsyncCleanupHook>(*this));
     }
 
     struct Hash {
@@ -105,17 +109,6 @@ struct EitherCleanupHook : std::variant<SyncCleanupHook, AsyncCleanupHook> {
         {
             return hook.get().hash();
         }
-    };
-
-private:
-    template<typename T, typename U>
-    struct MatchConst {
-        using type = U;
-    };
-
-    template<typename T, typename U>
-    struct MatchConst<const T, U> {
-        using type = const U;
     };
 };
 
