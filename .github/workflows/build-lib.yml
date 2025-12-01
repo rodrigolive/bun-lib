@@ -143,16 +143,16 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install cmake ninja llvm@18 rust pkg-config
+          # Use latest LLVM (19.x) which has the lazy_split_view bug fix
+          brew install cmake ninja llvm rust pkg-config
 
       - name: Set up LLVM
         run: |
-          echo "PATH=/usr/local/opt/llvm@18/bin:$PATH" >> $GITHUB_ENV
-          echo "LDFLAGS=-L/usr/local/opt/llvm@18/lib -L/usr/local/opt/llvm@18/lib/c++" >> $GITHUB_ENV
-          echo "CC=/usr/local/opt/llvm@18/bin/clang" >> $GITHUB_ENV
-          echo "CXX=/usr/local/opt/llvm@18/bin/clang++" >> $GITHUB_ENV
-          # Use Apple's libc++ instead of LLVM's to avoid lazy_split_view bug
-          echo "CXXFLAGS=-stdlib=libc++ -nostdinc++ -isystem $(xcrun --show-sdk-path)/usr/include/c++/v1 -isystem $(xcrun --show-sdk-path)/usr/include" >> $GITHUB_ENV
+          # Use LLVM 19's clang and libc++ (has lazy_split_view fix)
+          echo "PATH=/usr/local/opt/llvm/bin:$PATH" >> $GITHUB_ENV
+          echo "LDFLAGS=-L/usr/local/opt/llvm/lib -L/usr/local/opt/llvm/lib/c++" >> $GITHUB_ENV
+          echo "CC=/usr/local/opt/llvm/bin/clang" >> $GITHUB_ENV
+          echo "CXX=/usr/local/opt/llvm/bin/clang++" >> $GITHUB_ENV
 
       - name: Install Zig
         run: |
@@ -167,8 +167,8 @@ jobs:
         run: |
           bun install
           bun ./scripts/build.mjs -GNinja \
-            -DCMAKE_C_COMPILER=/usr/local/opt/llvm@18/bin/clang \
-            -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm@18/bin/clang++ \
+            -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang \
+            -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DBUILD_STATIC_LIBRARY=ON \
             -DGITHUB_ACTIONS=ON \
@@ -177,8 +177,8 @@ jobs:
       - name: Build dynamic library
         run: |
           bun ./scripts/build.mjs -GNinja \
-            -DCMAKE_C_COMPILER=/usr/local/opt/llvm@18/bin/clang \
-            -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm@18/bin/clang++ \
+            -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang \
+            -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DBUILD_DYNAMIC_LIBRARY=ON \
             -DGITHUB_ACTIONS=ON \
@@ -223,18 +223,16 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install cmake ninja llvm@18 rust pkg-config
+          # Use latest LLVM (19.x) which has the lazy_split_view bug fix
+          brew install cmake ninja llvm rust pkg-config
 
-      - name: Set up LLVM with Apple libc++ headers
+      - name: Set up LLVM
         run: |
-          # Use LLVM 18's clang (required for warning flags) but Apple's libc++ headers
-          # (LLVM 18's bundled libc++ has the lazy_split_view access specifier bug)
-          echo "PATH=/opt/homebrew/opt/llvm@18/bin:$PATH" >> $GITHUB_ENV
-          echo "CC=/opt/homebrew/opt/llvm@18/bin/clang" >> $GITHUB_ENV
-          echo "CXX=/opt/homebrew/opt/llvm@18/bin/clang++" >> $GITHUB_ENV
-          # Force Apple's libc++ headers by removing LLVM's and adding Apple's first
-          SDK_PATH=$(xcrun --show-sdk-path)
-          echo "CXXFLAGS=-nostdinc++ -isystem ${SDK_PATH}/usr/include/c++/v1" >> $GITHUB_ENV
+          # Use LLVM 19's clang and libc++ (has lazy_split_view fix)
+          echo "PATH=/opt/homebrew/opt/llvm/bin:$PATH" >> $GITHUB_ENV
+          echo "CC=/opt/homebrew/opt/llvm/bin/clang" >> $GITHUB_ENV
+          echo "CXX=/opt/homebrew/opt/llvm/bin/clang++" >> $GITHUB_ENV
+          echo "LDFLAGS=-L/opt/homebrew/opt/llvm/lib -L/opt/homebrew/opt/llvm/lib/c++" >> $GITHUB_ENV
 
       - name: Install Zig
         run: |
@@ -249,8 +247,8 @@ jobs:
         run: |
           bun install
           bun ./scripts/build.mjs -GNinja \
-            -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm@18/bin/clang \
-            -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm@18/bin/clang++ \
+            -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
+            -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DBUILD_STATIC_LIBRARY=ON \
             -DGITHUB_ACTIONS=ON \
@@ -259,8 +257,8 @@ jobs:
       - name: Build dynamic library
         run: |
           bun ./scripts/build.mjs -GNinja \
-            -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm@18/bin/clang \
-            -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm@18/bin/clang++ \
+            -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
+            -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DBUILD_DYNAMIC_LIBRARY=ON \
             -DGITHUB_ACTIONS=ON \
