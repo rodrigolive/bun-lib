@@ -1012,6 +1012,7 @@ if(NOT WIN32)
       -Wno-nullability-completeness
       -Wno-undefined-var-template
       -Wno-mismatched-tags
+      -Wno-deprecated-declarations
       -Werror
     )
   else()
@@ -1031,6 +1032,7 @@ if(NOT WIN32)
       -Wno-nullability-completeness
       -Wno-undefined-var-template
       -Wno-mismatched-tags
+      -Wno-deprecated-declarations
       -Werror
     )
 
