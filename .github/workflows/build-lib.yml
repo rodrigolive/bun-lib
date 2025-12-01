@@ -214,6 +214,12 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Select Xcode 16
+        run: |
+          # Use Xcode 16 which has a newer SDK with fixed libc++ (no lazy_split_view bug)
+          sudo xcode-select -switch /Applications/Xcode_16.0.app/Contents/Developer
+          xcodebuild -version
+
       - name: Install dependencies
         run: |
           brew install cmake ninja llvm@18 rust pkg-config
@@ -224,7 +230,7 @@ jobs:
           echo "LDFLAGS=-L/opt/homebrew/opt/llvm@18/lib -L/opt/homebrew/opt/llvm@18/lib/c++" >> $GITHUB_ENV
           echo "CC=/opt/homebrew/opt/llvm@18/bin/clang" >> $GITHUB_ENV
           echo "CXX=/opt/homebrew/opt/llvm@18/bin/clang++" >> $GITHUB_ENV
-          # Use Apple's libc++ instead of LLVM's to avoid lazy_split_view bug
+          # Use Apple's libc++ from Xcode 16 SDK (avoids lazy_split_view bug in older SDKs)
           echo "CXXFLAGS=-stdlib=libc++ -nostdinc++ -isystem $(xcrun --show-sdk-path)/usr/include/c++/v1 -isystem $(xcrun --show-sdk-path)/usr/include" >> $GITHUB_ENV
 
       - name: Install Zig
