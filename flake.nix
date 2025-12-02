@@ -127,9 +127,7 @@
 
       in
       {
-        devShells.default = (pkgs.mkShell.override {
-          stdenv = pkgs.clangStdenv;
-        }) {
+        devShells.default = pkgs.mkShell {
           inherit packages;
 
           shellHook = ''
