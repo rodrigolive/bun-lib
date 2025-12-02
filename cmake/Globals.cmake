@@ -124,6 +124,9 @@ optionx(CMAKE_BUILD_PARALLEL_LEVEL STRING "The number of parallel build jobs" DE
 setx(CWD ${CMAKE_SOURCE_DIR})
 setx(BUILD_PATH ${CMAKE_BINARY_DIR})
 
+# List to track all static libraries for bundling
+set(STATIC_LIB_LIST "")
+
 optionx(CACHE_PATH FILEPATH "The path to the cache directory" DEFAULT ${BUILD_PATH}/cache)
 optionx(CACHE_STRATEGY "auto|distributed|local|none" "The strategy to use for caching" DEFAULT
 "auto")
@@ -885,7 +888,20 @@ function(register_cmake_command)
   # >| mimalloc/CMakeFiles/mimalloc-obj.dir/src/static.c.o
   # >| ld: 287 duplicate symbols for architecture arm64
   if(NOT BUN_LINK_ONLY OR NOT MAKE_ARTIFACTS MATCHES "static.c.o")
-    target_link_libraries(${bun} PRIVATE ${MAKE_ARTIFACTS})
+    # Add libraries to static lib list for bundling
+    foreach(lib IN LISTS MAKE_ARTIFACTS)
+      list(APPEND STATIC_LIB_LIST ${lib})
+      set(STATIC_LIB_LIST "${STATIC_LIB_LIST}" PARENT_SCOPE)
+      if(BUILD_STATIC_LIBRARY OR BUILD_DYNAMIC_LIBRARY)
+        message(STATUS " -- Added ${lib} to static lib list")
+      endif()
+    endforeach()
+
+    if(BUILD_STATIC_LIBRARY)
+      # Don't link, we'll bundle these libraries later
+    else()
+      target_link_libraries(${bun} PRIVATE ${MAKE_ARTIFACTS})
+    endif()
   endif()
 
   if(BUN_LINK_ONLY)

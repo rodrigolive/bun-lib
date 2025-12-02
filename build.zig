@@ -26,6 +26,8 @@ const BunBuildOptions = struct {
     os: OperatingSystem,
     arch: Arch,
 
+    build_static_library: bool = false,
+
     version: Version,
     canary_revision: ?u32,
     sha: []const u8,
@@ -257,6 +259,7 @@ pub fn build(b: *Build) !void {
         .tracy_callstack_depth = b.option(u16, "tracy_callstack_depth", "") orelse 10,
         .enable_logs = b.option(bool, "enable_logs", "Enable logs in release") orelse false,
         .enable_asan = b.option(bool, "enable_asan", "Enable asan") orelse false,
+        .build_static_library = b.option(bool, "build_static_library", "Build as a static library instead of executable") orelse false,
         .enable_fuzzilli = b.option(bool, "enable_fuzzilli", "Enable fuzzilli instrumentation") orelse false,
         .enable_valgrind = b.option(bool, "enable_valgrind", "Enable valgrind") orelse false,
         .use_mimalloc = b.option(bool, "use_mimalloc", "Use mimalloc as default allocator") orelse false,
@@ -496,6 +499,7 @@ fn addMultiCheck(
                 .enable_fuzzilli = root_build_options.enable_fuzzilli,
                 .use_mimalloc = root_build_options.use_mimalloc,
                 .override_no_export_cpp_apis = root_build_options.override_no_export_cpp_apis,
+                .build_static_library = root_build_options.build_static_library,
             };
 
             var obj = addBunObject(b, &options);
@@ -568,8 +572,14 @@ pub fn addBunObject(b: *Build, opts: *BunBuildOptions) *Compile {
     bun.addImport("bun", bun); // allow circular "bun" import
     addInternalImports(b, bun, opts);
 
+    // Use libbun.zig for static library builds, main.zig for executables
+    const root_source_file = if (opts.build_static_library)
+        b.path("src/libbun.zig")
+    else
+        b.path("src/main.zig");
+
     const root = b.createModule(.{
-        .root_source_file = b.path("src/main.zig"),
+        .root_source_file = root_source_file,
 
         // Root module gets compilation flags. Forwarded as default to dependencies.
         .target = opts.target,
@@ -608,7 +618,6 @@ fn configureObj(b: *Build, opts: *BunBuildOptions, obj: *Compile) void {
     }
 
     obj.no_link_obj = opts.os != .windows;
-
 
     if (opts.enable_asan and !enableFastBuild(b)) {
         if (@hasField(Build.Module, "sanitize_address")) {

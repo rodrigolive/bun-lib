@@ -1,0 +1,341 @@
+# GitHub Actions workflow for building Bun as static and dynamic libraries
+# Targets: Linux amd64, macOS x86_64 (Intel), macOS arm64 (Apple Silicon)
+
+name: Build Libraries
+
+on:
+  push:
+    branches:
+      - main
+      - bun-lib
+    tags:
+      - 'v*'
+      - 'lib-*'
+  pull_request:
+    branches:
+      - main
+      - bun-lib
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (Release or Debug)'
+        required: true
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Debug
+      create_release:
+        description: 'Create GitHub release'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  BUILD_TYPE: ${{ github.event.inputs.build_type || 'Release' }}
+
+jobs:
+  build-linux-amd64:
+    name: Build Linux AMD64
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install system dependencies
+        run: |
+          # Add LLVM apt repository
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee /etc/apt/sources.list.d/llvm-18.list
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            llvm-18 \
+            clang-18 \
+            lld-18 \
+            libc++-18-dev \
+            libc++abi-18-dev \
+            rustc \
+            cargo \
+            pkg-config \
+            libssl-dev \
+            zlib1g-dev
+
+      - name: Set up LLVM
+        run: |
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
+          sudo update-alternatives --install /usr/bin/lld lld /usr/bin/lld-18 100
+          sudo update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-18 100
+          sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-18 100
+          echo "CC=/usr/bin/clang-18" >> $GITHUB_ENV
+          echo "CXX=/usr/bin/clang++-18" >> $GITHUB_ENV
+
+      - name: Install Zig
+        run: |
+          ZIG_VERSION=$(cat .zigversion)
+          ZIG_NAME="bootstrap-x86_64-linux-musl"
+          curl -fLo zig.zip "https://github.com/oven-sh/zig/releases/download/autobuild-${ZIG_VERSION}/${ZIG_NAME}.zip"
+          unzip -q zig.zip
+          sudo mv ${ZIG_NAME}/zig /usr/local/bin/
+          rm -rf zig.zip ${ZIG_NAME}
+
+      - name: Build static library
+        run: |
+          bun install
+          bun ./scripts/build.mjs -GNinja \
+            -DCMAKE_C_COMPILER=/usr/bin/clang-18 \
+            -DCMAKE_CXX_COMPILER=/usr/bin/clang++-18 \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DBUILD_STATIC_LIBRARY=ON \
+            -DGITHUB_ACTIONS=ON \
+            -B build/lib-static
+
+      - name: Build dynamic library
+        run: |
+          bun ./scripts/build.mjs -GNinja \
+            -DCMAKE_C_COMPILER=/usr/bin/clang-18 \
+            -DCMAKE_CXX_COMPILER=/usr/bin/clang++-18 \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DBUILD_DYNAMIC_LIBRARY=ON \
+            -DGITHUB_ACTIONS=ON \
+            -B build/lib-dynamic
+
+      - name: Package libraries
+        run: |
+          mkdir -p dist/linux-amd64
+          cp -r build/lib-static/output/libs/* dist/linux-amd64/ || true
+          cp -r build/lib-dynamic/output/libs/* dist/linux-amd64/ || true
+          # Also copy headers
+          mkdir -p dist/linux-amd64/include
+          cp src/bun.js/bindings/*.h dist/linux-amd64/include/ || true
+          tar -czvf bun-lib-linux-amd64.tar.gz -C dist linux-amd64
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bun-lib-linux-amd64
+          path: bun-lib-linux-amd64.tar.gz
+          retention-days: 30
+
+  build-macos-x86:
+    name: Build macOS x86_64
+    runs-on: macos-13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: |
+          # Use Apple clang from Xcode 15.2 (default on macos-13)
+          brew install cmake ninja rust pkg-config
+
+      - name: Set up Apple clang
+        run: |
+          # Use Apple clang from Xcode 15.2 (default on macos-13)
+          echo "CC=clang" >> $GITHUB_ENV
+          echo "CXX=clang++" >> $GITHUB_ENV
+
+      - name: Install Zig
+        run: |
+          ZIG_VERSION=$(cat .zigversion)
+          ZIG_NAME="bootstrap-x86_64-macos-none"
+          curl -fLo zig.zip "https://github.com/oven-sh/zig/releases/download/autobuild-${ZIG_VERSION}/${ZIG_NAME}.zip"
+          unzip -q zig.zip
+          sudo mv ${ZIG_NAME}/zig /usr/local/bin/
+          rm -rf zig.zip ${ZIG_NAME}
+
+      - name: Build static library
+        run: |
+          bun install
+          bun ./scripts/build.mjs -GNinja \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DBUILD_STATIC_LIBRARY=ON \
+            -DGITHUB_ACTIONS=ON \
+            -B build/lib-static
+
+      - name: Build dynamic library
+        run: |
+          bun ./scripts/build.mjs -GNinja \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DBUILD_DYNAMIC_LIBRARY=ON \
+            -DGITHUB_ACTIONS=ON \
+            -B build/lib-dynamic
+
+      - name: Package libraries
+        run: |
+          mkdir -p dist/darwin-x86_64
+          cp -r build/lib-static/output/libs/* dist/darwin-x86_64/ || true
+          cp -r build/lib-dynamic/output/libs/* dist/darwin-x86_64/ || true
+          mkdir -p dist/darwin-x86_64/include
+          cp src/bun.js/bindings/*.h dist/darwin-x86_64/include/ || true
+          tar -czvf bun-lib-darwin-x86_64.tar.gz -C dist darwin-x86_64
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bun-lib-darwin-x86_64
+          path: bun-lib-darwin-x86_64.tar.gz
+          retention-days: 30
+
+  build-macos-arm:
+    name: Build macOS arm64
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Select Xcode 16.2
+        run: |
+          # Use Xcode 16.2 which has a newer SDK with fixed libc++ (no lazy_split_view bug)
+          # Xcode 16.0 was removed from macos-14 runners as of Jan 2025
+          sudo xcode-select -switch /Applications/Xcode_16.2.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Install dependencies
+        run: |
+          # Use Apple clang with Xcode 16.2 to avoid lazy_split_view bug
+          brew install cmake ninja rust pkg-config
+
+      - name: Set up Apple clang
+        run: |
+          # Use Apple clang from Xcode 16.2 (no lazy_split_view bug)
+          echo "CC=clang" >> $GITHUB_ENV
+          echo "CXX=clang++" >> $GITHUB_ENV
+
+      - name: Install Zig
+        run: |
+          ZIG_VERSION=$(cat .zigversion)
+          ZIG_NAME="bootstrap-aarch64-macos-none"
+          curl -fLo zig.zip "https://github.com/oven-sh/zig/releases/download/autobuild-${ZIG_VERSION}/${ZIG_NAME}.zip"
+          unzip -q zig.zip
+          sudo mv ${ZIG_NAME}/zig /usr/local/bin/
+          rm -rf zig.zip ${ZIG_NAME}
+
+      - name: Build static library
+        run: |
+          bun install
+          bun ./scripts/build.mjs -GNinja \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DBUILD_STATIC_LIBRARY=ON \
+            -DGITHUB_ACTIONS=ON \
+            -B build/lib-static
+
+      - name: Build dynamic library
+        run: |
+          bun ./scripts/build.mjs -GNinja \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DBUILD_DYNAMIC_LIBRARY=ON \
+            -DGITHUB_ACTIONS=ON \
+            -B build/lib-dynamic
+
+      - name: Package libraries
+        run: |
+          mkdir -p dist/darwin-arm64
+          cp -r build/lib-static/output/libs/* dist/darwin-arm64/ || true
+          cp -r build/lib-dynamic/output/libs/* dist/darwin-arm64/ || true
+          mkdir -p dist/darwin-arm64/include
+          cp src/bun.js/bindings/*.h dist/darwin-arm64/include/ || true
+          tar -czvf bun-lib-darwin-arm64.tar.gz -C dist darwin-arm64
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bun-lib-darwin-arm64
+          path: bun-lib-darwin-arm64.tar.gz
+          retention-days: 30
+
+  create-release:
+    name: Create Release
+    needs: [build-linux-amd64, build-macos-x86, build-macos-arm]
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.create_release == 'true' || startsWith(github.ref, 'refs/tags/') }}
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          find artifacts -name "*.tar.gz" -exec mv {} release/ \;
+          ls -la release/
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=lib-$(date +%Y%m%d)-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Bun Libraries ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}
+          body: |
+            ## Bun Libraries Release
+
+            This release contains static and dynamic libraries for embedding Bun's JavaScript runtime.
+
+            ### Supported Platforms
+            - **Linux AMD64** (x86_64-linux-gnu)
+            - **macOS x86_64** (Intel)
+            - **macOS arm64** (Apple Silicon)
+
+            ### Contents
+            Each archive contains:
+            - Static libraries (`.a` files)
+            - Dynamic libraries (`.so` / `.dylib` files)
+            - Header files for C/C++ integration
+
+            ### Usage
+            See the [documentation](https://github.com/${{ github.repository }}/blob/main/docs/embedding.md) for integration instructions.
+
+            🤖 Generated with [Claude Code](https://claude.com/claude-code)
+          files: |
+            release/bun-lib-linux-amd64.tar.gz
+            release/bun-lib-darwin-x86_64.tar.gz
+            release/bun-lib-darwin-arm64.tar.gz
+          draft: false
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          generate_release_notes: true

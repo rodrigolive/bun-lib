@@ -24,6 +24,16 @@ set(bunExe ${bun}${CMAKE_EXECUTABLE_SUFFIX})
 if(bunStrip)
   set(bunStripExe ${bunStrip}${CMAKE_EXECUTABLE_SUFFIX})
   set(buns ${bun} ${bunStrip})
+
+  # When building as a library, use library extensions
+  if(BUILD_STATIC_LIBRARY)
+    set(bunExe ${CMAKE_STATIC_LIBRARY_PREFIX}${bun}${CMAKE_STATIC_LIBRARY_SUFFIX})
+    set(bunStripExe ${CMAKE_STATIC_LIBRARY_PREFIX}${bunStrip}${CMAKE_STATIC_LIBRARY_SUFFIX})
+  elseif(BUILD_DYNAMIC_LIBRARY)
+    set(bunExe ${CMAKE_SHARED_LIBRARY_PREFIX}${bun}${CMAKE_SHARED_LIBRARY_SUFFIX})
+    set(bunStripExe ${CMAKE_SHARED_LIBRARY_PREFIX}${bunStrip}${CMAKE_SHARED_LIBRARY_SUFFIX})
+  endif()
+
 else()
   set(buns ${bun})
 endif()
@@ -605,8 +615,6 @@ WEBKIT_ADD_SOURCE_DEPENDENCIES(
   ${CODEGEN_PATH}/ZigGlobalObject.lut.h
 )
 
-
-
 WEBKIT_ADD_SOURCE_DEPENDENCIES(
   ${CWD}/src/bun.js/bindings/InternalModuleRegistry.cpp
   ${CODEGEN_PATH}/InternalModuleRegistryConstants.h
@@ -698,6 +706,7 @@ register_command(
       -Denable_fuzzilli=$<IF:$<BOOL:${ENABLE_FUZZILLI}>,true,false>
       -Denable_valgrind=$<IF:$<BOOL:${ENABLE_VALGRIND}>,true,false>
       -Duse_mimalloc=$<IF:$<BOOL:${USE_MIMALLOC_AS_DEFAULT_ALLOCATOR}>,true,false>
+      -Dbuild_static_library=$<IF:$<BOOL:${BUILD_STATIC_LIBRARY}>,true,false>
       -Dllvm_codegen_threads=${LLVM_ZIG_CODEGEN_THREADS}
       -Dversion=${VERSION}
       -Dreported_nodejs_version=${NODEJS_VERSION}
@@ -793,12 +802,18 @@ if(WIN32)
   set(WINDOWS_RESOURCES ${CODEGEN_PATH}/windows-app-info.rc ${CWD}/src/bun.exe.manifest)
 endif()
 
-# --- Executable ---
+# --- Executable / Library ---
 
 set(BUN_CPP_OUTPUT ${BUILD_PATH}/${CMAKE_STATIC_LIBRARY_PREFIX}${bun}${CMAKE_STATIC_LIBRARY_SUFFIX})
 
 if(BUN_LINK_ONLY)
-  add_executable(${bun} ${BUN_CPP_OUTPUT} ${BUN_ZIG_OUTPUT} ${WINDOWS_RESOURCES})
+  if(BUILD_STATIC_LIBRARY)
+    add_library(${bun} STATIC ${BUN_CPP_OUTPUT} ${BUN_ZIG_OUTPUT} ${WINDOWS_RESOURCES})
+  elseif(BUILD_DYNAMIC_LIBRARY)
+    add_library(${bun} SHARED ${BUN_CPP_OUTPUT} ${BUN_ZIG_OUTPUT} ${WINDOWS_RESOURCES})
+  else()
+    add_executable(${bun} ${BUN_CPP_OUTPUT} ${BUN_ZIG_OUTPUT} ${WINDOWS_RESOURCES})
+  endif()
   set_target_properties(${bun} PROPERTIES LINKER_LANGUAGE CXX)
   target_link_libraries(${bun} PRIVATE ${BUN_CPP_OUTPUT})
 elseif(BUN_CPP_ONLY)
@@ -816,8 +831,14 @@ elseif(BUN_CPP_ONLY)
       ${BUN_CPP_OUTPUT}
   )
 else()
-  add_executable(${bun} ${BUN_CPP_SOURCES} ${WINDOWS_RESOURCES})
-  target_link_libraries(${bun} PRIVATE ${BUN_ZIG_OUTPUT})
+  if(BUILD_STATIC_LIBRARY)
+    add_library(${bun} STATIC ${BUN_CPP_SOURCES} ${BUN_ZIG_OUTPUT} ${WINDOWS_RESOURCES})
+  elseif(BUILD_DYNAMIC_LIBRARY)
+    add_library(${bun} SHARED ${BUN_CPP_SOURCES} ${BUN_ZIG_OUTPUT} ${WINDOWS_RESOURCES})
+  else()
+    add_executable(${bun} ${BUN_CPP_SOURCES} ${WINDOWS_RESOURCES})
+    target_link_libraries(${bun} PRIVATE ${BUN_ZIG_OUTPUT})
+  endif()
 endif()
 
 if(NOT bun STREQUAL "bun")
@@ -940,7 +961,6 @@ if(DEBUG AND NOT CI)
   )
 endif()
 
-
 # --- Compiler options ---
 
 if(NOT WIN32)
@@ -990,8 +1010,16 @@ if(NOT WIN32)
       -Wno-unused-function
       -Wno-c++23-lambda-attributes
       -Wno-nullability-completeness
+      -Wno-undefined-var-template
+      -Wno-mismatched-tags
+      -Wno-deprecated-declarations
       -Werror
     )
+
+    # Add -Wno-character-conversion only for Apple clang (macOS)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+      target_compile_options(${bun} PUBLIC -Wno-character-conversion)
+    endif()
   else()
     # Leave -Werror=unused off in release builds so we avoid errors from being used in ASSERT
     target_compile_options(${bun} PUBLIC ${LTO_FLAG}
@@ -1007,8 +1035,15 @@ if(NOT WIN32)
       -Werror=sometimes-uninitialized
       -Wno-c++23-lambda-attributes
       -Wno-nullability-completeness
-      -Werror
+      -Wno-undefined-var-template
+      -Wno-mismatched-tags
+      -Wno-deprecated-declarations
     )
+
+    # Add -Wno-character-conversion only for Apple clang (macOS)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+      target_compile_options(${bun} PUBLIC -Wno-character-conversion)
+    endif()
 
     if(ENABLE_ASAN)
       target_compile_options(${bun} PUBLIC
@@ -1372,41 +1407,70 @@ if(NOT BUN_CPP_ONLY)
     endif()
   endif()
 
-  # somehow on some Linux systems we need to disable ASLR for ASAN-instrumented binaries to run
-  # when spawned by cmake (they run fine from a shell!)
-  # otherwise they crash with:
-  # ==856230==Shadow memory range interleaves with an existing memory mapping. ASan cannot proceed correctly. ABORTING.
-  # ==856230==ASan shadow was supposed to be located in the [0x00007fff7000-0x10007fff7fff] range.
-  # ==856230==This might be related to ELF_ET_DYN_BASE change in Linux 4.12.
-  # ==856230==See https://github.com/google/sanitizers/issues/856 for possible workarounds.
-  # the linked issue refers to very old kernels but this still happens to us on modern ones.
-  # disabling ASLR to run the binary works around it
-  set(TEST_BUN_COMMAND_BASE ${BUILD_PATH}/${bunExe} --revision)
-  set(TEST_BUN_COMMAND_ENV_WRAP
-    ${CMAKE_COMMAND} -E env BUN_DEBUG_QUIET_LOGS=1)
-  if (LINUX AND ENABLE_ASAN)
-    set(TEST_BUN_COMMAND
-      ${TEST_BUN_COMMAND_ENV_WRAP} setarch ${CMAKE_HOST_SYSTEM_PROCESSOR} -R ${TEST_BUN_COMMAND_BASE}
-      || ${TEST_BUN_COMMAND_ENV_WRAP} ${TEST_BUN_COMMAND_BASE})
-  else()
-    set(TEST_BUN_COMMAND
-      ${TEST_BUN_COMMAND_ENV_WRAP} ${TEST_BUN_COMMAND_BASE})
+  # --- Copy static/dynamic libraries to output directory ---
+  if(BUILD_STATIC_LIBRARY OR BUILD_DYNAMIC_LIBRARY)
+    # Copy all C++ and dependency libraries to output dir
+    foreach(lib IN LISTS STATIC_LIB_LIST)
+      if(EXISTS ${lib})
+        add_custom_command(
+          TARGET ${bun}
+          POST_BUILD
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different ${lib} ${STATIC_LIB_OUTPUT_DESTINATION}
+          COMMAND ${CMAKE_COMMAND} -E echo "Copied ${lib} to ${STATIC_LIB_OUTPUT_DESTINATION}"
+          COMMENT "Copying library to output directory"
+        )
+      endif()
+    endforeach()
+
+    # Copy the main Zig library output
+    add_custom_command(
+      TARGET ${bun}
+      POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${bun}> ${STATIC_LIB_OUTPUT_DESTINATION}
+      COMMAND ${CMAKE_COMMAND} -E echo "Copied $<TARGET_FILE:${bun}> to ${STATIC_LIB_OUTPUT_DESTINATION}"
+      COMMENT "Copying main library to output directory"
+    )
   endif()
 
-  register_command(
-    TARGET
-      ${bun}
-    TARGET_PHASE
-      POST_BUILD
-    COMMENT
-      "Testing ${bun}"
-    COMMAND
-      ${TEST_BUN_COMMAND}
-    CWD
-      ${BUILD_PATH}
-  )
+  # --- Testing (only for executables, not libraries) ---
+  if(NOT BUILD_STATIC_LIBRARY AND NOT BUILD_DYNAMIC_LIBRARY)
+    # somehow on some Linux systems we need to disable ASLR for ASAN-instrumented binaries to run
+    # when spawned by cmake (they run fine from a shell!)
+    # otherwise they crash with:
+    # ==856230==Shadow memory range interleaves with an existing memory mapping. ASan cannot proceed correctly. ABORTING.
+    # ==856230==ASan shadow was supposed to be located in the [0x00007fff7000-0x10007fff7fff] range.
+    # ==856230==This might be related to ELF_ET_DYN_BASE change in Linux 4.12.
+    # ==856230==See https://github.com/google/sanitizers/issues/856 for possible workarounds.
+    # the linked issue refers to very old kernels but this still happens to us on modern ones.
+    # disabling ASLR to run the binary works around it
+    set(TEST_BUN_COMMAND_BASE ${BUILD_PATH}/${bunExe} --revision)
+    set(TEST_BUN_COMMAND_ENV_WRAP
+      ${CMAKE_COMMAND} -E env BUN_DEBUG_QUIET_LOGS=1)
+    if (LINUX AND ENABLE_ASAN)
+      set(TEST_BUN_COMMAND
+        ${TEST_BUN_COMMAND_ENV_WRAP} setarch ${CMAKE_HOST_SYSTEM_PROCESSOR} -R ${TEST_BUN_COMMAND_BASE}
+        || ${TEST_BUN_COMMAND_ENV_WRAP} ${TEST_BUN_COMMAND_BASE})
+    else()
+      set(TEST_BUN_COMMAND
+        ${TEST_BUN_COMMAND_ENV_WRAP} ${TEST_BUN_COMMAND_BASE})
+    endif()
 
-  if(CI)
+    register_command(
+      TARGET
+        ${bun}
+      TARGET_PHASE
+        POST_BUILD
+      COMMENT
+        "Testing ${bun}"
+      COMMAND
+        ${TEST_BUN_COMMAND}
+      CWD
+        ${BUILD_PATH}
+    )
+  endif()
+
+  # Features.json generation - only for executables
+  if(CI AND NOT BUILD_STATIC_LIBRARY AND NOT BUILD_DYNAMIC_LIBRARY)
     set(BUN_FEATURES_SCRIPT ${CWD}/scripts/features.mjs)
     register_command(
       TARGET
@@ -1430,7 +1494,8 @@ if(NOT BUN_CPP_ONLY)
     )
   endif()
 
-  if(CMAKE_HOST_APPLE AND bunStrip)
+  # Debug symbol generation - only for executables, not libraries
+  if(CMAKE_HOST_APPLE AND bunStrip AND NOT BUILD_STATIC_LIBRARY AND NOT BUILD_DYNAMIC_LIBRARY)
     register_command(
       TARGET
         ${bun}
@@ -1453,7 +1518,8 @@ if(NOT BUN_CPP_ONLY)
     )
   endif()
 
-  if(CI)
+  # CI packaging - only for executables
+  if(CI AND NOT BUILD_STATIC_LIBRARY AND NOT BUILD_DYNAMIC_LIBRARY)
     set(bunTriplet bun-${OS}-${ARCH})
     if(LINUX AND ABI STREQUAL "musl")
       set(bunTriplet ${bunTriplet}-musl)
@@ -1485,7 +1551,6 @@ if(NOT BUN_CPP_ONLY)
     if((APPLE OR LINUX) AND NOT ENABLE_ASAN)
       list(APPEND bunFiles ${bun}.linker-map)
     endif()
-
 
     register_command(
       TARGET
