@@ -1,0 +1,228 @@
+name: Build Libraries (Nix)
+
+on:
+  push:
+    branches: [bun-lib]
+  pull_request:
+    branches: [bun-lib]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build-linux-amd64:
+    name: Build Linux AMD64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: cachix/cachix-action@v16
+        with:
+          name: bun-dev
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build static library
+        run: |
+          nix develop --command bash -c "
+            bun install
+            bun ./scripts/build.mjs -GNinja \
+              -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+              -DBUILD_STATIC_LIBRARY=ON \
+              -DGITHUB_ACTIONS=ON \
+              -B build/lib-static
+          "
+
+      - name: Build dynamic library
+        run: |
+          nix develop --command bash -c "
+            bun ./scripts/build.mjs -GNinja \
+              -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+              -DBUILD_DYNAMIC_LIBRARY=ON \
+              -DGITHUB_ACTIONS=ON \
+              -B build/lib-dynamic
+          "
+
+      - name: Package libraries
+        run: |
+          tar -czf bun-lib-linux-amd64.tar.gz \
+            build/lib-static/libbun.a \
+            build/lib-dynamic/libbun.so \
+            include/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bun-lib-linux-amd64
+          path: bun-lib-linux-amd64.tar.gz
+          retention-days: 30
+
+  build-macos-x86:
+    name: Build macOS x86_64
+    runs-on: macos-13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: cachix/cachix-action@v16
+        with:
+          name: bun-dev
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build static library
+        run: |
+          export CMAKE_SYSTEM_PROCESSOR=x86_64
+          nix develop --command bash -c "
+            bun install
+            bun ./scripts/build.mjs -GNinja \
+              -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+              -DBUILD_STATIC_LIBRARY=ON \
+              -DGITHUB_ACTIONS=ON \
+              -B build/lib-static
+          "
+
+      - name: Build dynamic library
+        run: |
+          export CMAKE_SYSTEM_PROCESSOR=x86_64
+          nix develop --command bash -c "
+            bun ./scripts/build.mjs -GNinja \
+              -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+              -DBUILD_DYNAMIC_LIBRARY=ON \
+              -DGITHUB_ACTIONS=ON \
+              -B build/lib-dynamic
+          "
+
+      - name: Package libraries
+        run: |
+          tar -czf bun-lib-macos-x86_64.tar.gz \
+            build/lib-static/libbun.a \
+            build/lib-dynamic/libbun.dylib \
+            include/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bun-macos-x86_64
+          path: bun-lib-macos-x86_64.tar.gz
+          retention-days: 30
+
+  build-macos-arm64:
+    name: Build macOS arm64
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: cachix/cachix-action@v16
+        with:
+          name: bun-dev
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build static library
+        run: |
+          export CMAKE_SYSTEM_PROCESSOR=arm64
+          nix develop --command bash -c "
+            bun install
+            bun ./scripts/build.mjs -GNinja \
+              -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+              -DBUILD_STATIC_LIBRARY=ON \
+              -DGITHUB_ACTIONS=ON \
+              -B build/lib-static
+          "
+
+      - name: Build dynamic library
+        run: |
+          export CMAKE_SYSTEM_PROCESSOR=arm64
+          nix develop --command bash -c "
+            bun ./scripts/build.mjs -GNinja \
+              -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+              -DBUILD_DYNAMIC_LIBRARY=ON \
+              -DGITHUB_ACTIONS=ON \
+              -B build/lib-dynamic
+          "
+
+      - name: Package libraries
+        run: |
+          tar -czf bun-lib-macos-arm64.tar.gz \
+            build/lib-static/libbun.a \
+            build/lib-dynamic/libbun.dylib \
+            include/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bun-macos-arm64
+          path: bun-lib-macos-arm64.tar.gz
+          retention-days: 30
+
+  create-release:
+    name: Create Release
+    needs: [build-linux-amd64, build-macos-x86, build-macos-arm64]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/bun-lib'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: bun-lib-${{ github.run_number }}
+          name: Bun Libraries - Build ${{ github.run_number }}
+          body: |
+            Auto-built Bun libraries from commit ${{ github.sha }}
+
+            **Files:**
+            - `bun-lib-linux-amd64.tar.gz` - Static and dynamic libraries for Linux x86_64
+            - `bun-macos-x86_64.tar.gz` - Static and dynamic libraries for macOS x86_64
+            - `bun-macos-arm64.tar.gz` - Static and dynamic libraries for macOS arm64 (Apple Silicon)
+
+            **Contents:**
+            - `libbun.a` - Static library
+            - `libbun.so` / `libbun.dylib` - Dynamic library
+            - `include/` - Header files
+
+            **Build Environment:**
+            - Using Nix with LLVM 19
+            - All dependencies pinned and reproducible
+          files: |
+            artifacts/bun-lib-linux-amd64/bun-lib-linux-amd64.tar.gz
+            artifacts/bun-macos-x86_64/bun-macos-x86_64.tar.gz
+            artifacts/bun-macos-arm64/bun-macos-arm64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
