@@ -239,7 +239,7 @@ public:
             }
         }
 
-        m_cleanupHooks.emplace(Napi::SyncCleanupHook(function, data, ++m_cleanupHookCounter));
+        m_cleanupHooks.emplace(Napi::EitherCleanupHook{Napi::SyncCleanupHook{function, data, ++m_cleanupHookCounter}});
     }
 
     void removeCleanupHook(void (*function)(void*), void* data)
@@ -269,7 +269,7 @@ public:
 
         auto handle = std::make_unique<napi_async_cleanup_hook_handle__>(this, m_cleanupHooks.end());
 
-        auto [iter, inserted] = m_cleanupHooks.emplace(Napi::AsyncCleanupHook(function, handle.get(), data, ++m_cleanupHookCounter));
+        auto [iter, inserted] = m_cleanupHooks.emplace(Napi::EitherCleanupHook{Napi::AsyncCleanupHook{function, handle.get(), data, ++m_cleanupHookCounter}});
         NAPI_RELEASE_ASSERT(inserted, "Attempted to add a duplicate async NAPI environment cleanup hook");
         handle->iter = iter;
         return handle.release();
